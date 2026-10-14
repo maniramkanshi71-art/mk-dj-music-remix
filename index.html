@@ -1,1 +1,411 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MK DJ MUSIC REMIX PRO</title>
 
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #080817;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+header {
+  padding: 22px 10px;
+  background: linear-gradient(90deg, #ff00cc, #3333ff);
+  font-size: 25px;
+  font-weight: bold;
+}
+
+.container {
+  max-width: 850px;
+  margin: auto;
+  padding: 15px;
+}
+
+.panel {
+  background: #15152c;
+  border: 1px solid #39396b;
+  border-radius: 15px;
+  padding: 18px;
+  margin: 15px 0;
+}
+
+.decks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.deck {
+  background: #20203b;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.disc {
+  width: 125px;
+  height: 125px;
+  margin: 12px auto;
+  border-radius: 50%;
+  background: repeating-radial-gradient(
+    circle, #111 0 5px, #383838 6px 9px
+  );
+  border: 5px solid #777;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.disc::after {
+  content: "MK";
+  background: #ff00cc;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: bold;
+}
+
+.playing {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+button, .file-button {
+  border: 0;
+  border-radius: 8px;
+  padding: 12px 15px;
+  margin: 5px;
+  background: #ff00cc;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+input[type="range"] {
+  width: 90%;
+  accent-color: #ff00cc;
+}
+
+input[type="file"] {
+  width: 100%;
+  margin: 10px 0;
+}
+
+label {
+  display: block;
+  margin-top: 12px;
+}
+
+#status {
+  color: #66ffcc;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 450px) {
+  .decks { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+
+<body>
+
+<header>🎧 MK DJ MUSIC REMIX PRO 🎧</header>
+
+<div class="container">
+
+  <div class="panel">
+    <h2>🔥 DJ MUSIC MIXER 🔥</h2>
+    <p>अपना म्यूजिक चुनें और DJ मिक्सिंग शुरू करें!</p>
+    <p id="status">पहले Deck A और Deck B में गाने चुनें।</p>
+  </div>
+
+  <div class="decks">
+
+    <div class="deck">
+      <h2>🎵 DECK A</h2>
+      <div class="disc" id="discA"></div>
+      <input type="file" id="fileA" accept="audio/*">
+      <audio id="audioA" controls></audio>
+      <button onclick="playDeck('A')">▶ Play A</button>
+      <button onclick="pauseDeck('A')">⏸ Pause A</button>
+      <label>Volume A</label>
+      <input type="range" id="volumeA" min="0" max="1" step="0.01" value="0.8">
+    </div>
+
+    <div class="deck">
+      <h2>🎵 DECK B</h2>
+      <div class="disc" id="discB"></div>
+      <input type="file" id="fileB" accept="audio/*">
+      <audio id="audioB" controls></audio>
+      <button onclick="playDeck('B')">▶ Play B</button>
+      <button onclick="pauseDeck('B')">⏸ Pause B</button>
+      <label>Volume B</label>
+      <input type="range" id="volumeB" min="0" max="1" step="0.01" value="0.8">
+    </div>
+
+  </div>
+
+  <div class="panel">
+    <h2>🎚️ DJ MIXER</h2>
+
+    <label>Crossfader — A ↔ B</label>
+    <input type="range" id="crossfader" min="0" max="1" step="0.01" value="0.5">
+
+    <label>Bass</label>
+    <input type="range" id="bass" min="-15" max="15" value="0">
+
+    <label>Mid</label>
+    <input type="range" id="mid" min="-15" max="15" value="0">
+
+    <label>Treble</label>
+    <input type="range" id="treble" min="-15" max="15" value="0">
+
+    <label>Echo Effect</label>
+    <input type="range" id="echo" min="0" max="0.7" step="0.01" value="0">
+
+    <br><br>
+    <button onclick="startAudio()">🔊 Activate DJ Audio</button>
+    <button onclick="stopAll()">⏹ Stop All</button>
+  </div>
+
+  <div class="panel">
+    <h2>⏺️ MIX RECORDING</h2>
+    <p>मिक्स का ऑडियो रिकॉर्ड करके डाउनलोड करें।</p>
+    <button onclick="startRecording()">🔴 Start Recording</button>
+    <button onclick="stopRecording()">⬇️ Stop & Download</button>
+  </div>
+
+</div>
+
+<script>
+const audio = {
+  A: document.getElementById("audioA"),
+  B: document.getElementById("audioB")
+};
+
+let ctx;
+let master;
+let recorder;
+let chunks = [];
+let recordingDestination;
+let decks = {};
+let recording = false;
+
+function initAudio() {
+  if (ctx) return;
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  master = ctx.createGain();
+  master.gain.value = 0.8;
+
+  const bass = ctx.createBiquadFilter();
+  bass.type = "lowshelf";
+  bass.frequency.value = 200;
+
+  const mid = ctx.createBiquadFilter();
+  mid.type = "peaking";
+  mid.frequency.value = 1000;
+  mid.Q.value = 1;
+
+  const treble = ctx.createBiquadFilter();
+  treble.type = "highshelf";
+  treble.frequency.value = 3000;
+
+  const delay = ctx.createDelay(1);
+  delay.delayTime.value = 0.25;
+
+  const echoGain = ctx.createGain();
+  echoGain.gain.value = 0;
+
+  const dry = ctx.createGain();
+  dry.gain.value = 1;
+
+  const wet = ctx.createGain();
+  wet.gain.value = 0;
+
+  recordingDestination = ctx.createMediaStreamDestination();
+
+  bass.connect(mid);
+  mid.connect(treble);
+  treble.connect(dry);
+  dry.connect(master);
+
+  treble.connect(delay);
+  delay.connect(echoGain);
+  echoGain.connect(delay);
+  echoGain.connect(wet);
+  wet.connect(master);
+
+  master.connect(ctx.destination);
+  master.connect(recordingDestination);
+
+  decks = { bass, mid, treble, echoGain, wet };
+  
+  ["A", "B"].forEach(id => {
+    const source = ctx.createMediaElementSource(audio[id]);
+    const gain = ctx.createGain();
+
+    source.connect(gain);
+    gain.connect(bass);
+
+    decks[id] = { gain, source };
+  });
+
+  updateMixer();
+}
+
+async function startAudio() {
+  initAudio();
+  if (ctx.state === "suspended") await ctx.resume();
+  document.getElementById("status").textContent = "DJ Audio चालू है!";
+  updateMixer();
+}
+
+function updateMixer() {
+  if (!ctx) return;
+
+  const cross = Number(document.getElementById("crossfader").value);
+
+  decks.A.gain.gain.value =
+    Number(document.getElementById("volumeA").value) *
+    Math.cos(cross * Math.PI / 2);
+
+  decks.B.gain.gain.value =
+    Number(document.getElementById("volumeB").value) *
+    Math.sin(cross * Math.PI / 2);
+
+  decks.bass.gain.value =
+    Number(document.getElementById("bass").value);
+
+  decks.mid.gain.value =
+    Number(document.getElementById("mid").value);
+
+  decks.treble.gain.value =
+    Number(document.getElementById("treble").value);
+
+  const echo = Number(document.getElementById("echo").value);
+  decks.echoGain.gain.value = echo * 0.4;
+  decks.wet.gain.value = echo;
+}
+
+["crossfader", "volumeA", "volumeB",
+ "bass", "mid", "treble", "echo"].forEach(id => {
+  document.getElementById(id).addEventListener("input", updateMixer);
+});
+
+["A", "B"].forEach(id => {
+  document.getElementById("file" + id).addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    audio[id].src = URL.createObjectURL(file);
+    audio[id].load();
+
+    document.getElementById("status").textContent =
+      "Deck " + id + " में गाना लोड हो गया!";
+  });
+
+  audio[id].addEventListener("play", () => {
+    document.getElementById("disc" + id).classList.add("playing");
+  });
+
+  audio[id].addEventListener("pause", () => {
+    document.getElementById("disc" + id).classList.remove("playing");
+  });
+
+  audio[id].addEventListener("ended", () => {
+    document.getElementById("disc" + id).classList.remove("playing");
+  });
+});
+
+async function playDeck(id) {
+  await startAudio();
+  if (!audio[id].src) {
+    alert("पहले Deck " + id + " में गाना चुनें!");
+    return;
+  }
+
+  try {
+    await audio[id].play();
+  } catch (error) {
+    alert("गाना चलाने में समस्या हुई। दोबारा कोशिश करें।");
+  }
+}
+
+function pauseDeck(id) {
+  audio[id].pause();
+}
+
+function stopAll() {
+  audio.A.pause();
+  audio.B.pause();
+  audio.A.currentTime = 0;
+  audio.B.currentTime = 0;
+}
+
+function startRecording() {
+  if (!ctx) {
+    alert("पहले Activate DJ Audio दबाएँ।");
+    return;
+  }
+
+  if (!window.MediaRecorder) {
+    alert("आपका ब्राउज़र ऑडियो रिकॉर्डिंग सपोर्ट नहीं करता।");
+    return;
+  }
+
+  if (recording) return;
+
+  chunks = [];
+  recorder = new MediaRecorder(recordingDestination.stream);
+
+  recorder.ondataavailable = event => {
+    if (event.data.size > 0) chunks.push(event.data);
+  };
+
+  recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "MK-DJ-Remix.webm";
+    link.click();
+
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    document.getElementById("status").textContent =
+      "Recording डाउनलोड हो गई!";
+  };
+
+  recorder.start();
+  recording = true;
+  document.getElementById("status").textContent = "Recording चालू है!";
+}
+
+function stopRecording() {
+  if (recorder && recording && recorder.state !== "inactive") {
+    recorder.stop();
+    recording = false;
+  } else {
+    alert("पहले Start Recording दबाएँ।");
+  }
+}
+</script>
+
+</body>
+</html>
